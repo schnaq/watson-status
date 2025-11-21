@@ -13,7 +13,7 @@ class MenuHandler: NSObject {
     @objc func stopTracking() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "watson stop"]
+        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson stop"]
         try? process.run()
         process.waitUntilExit()
         updateStatus()
@@ -24,7 +24,7 @@ class MenuHandler: NSObject {
         let pipe = Pipe()
 
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "watson report --day"]
+        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson report --day"]
         process.standardOutput = pipe
         process.standardError = pipe
 
@@ -53,7 +53,7 @@ func getWatsonStatus() -> (String, String)? {
     let pipe = Pipe()
 
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "watson status"]
+    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson status"]
     process.standardOutput = pipe
     process.standardError = pipe
 
