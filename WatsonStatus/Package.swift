@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "WatsonGUI",
+    name: "WatsonStatus",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "WatsonGUI",
+            name: "WatsonStatus",
             path: "Sources"
         )
     ]

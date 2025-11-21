@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-APP_NAME="WatsonGUI"
-BUNDLE_ID="com.schnaq.WatsonGUI"
+APP_NAME="WatsonStatus"
+BUNDLE_ID="com.schnaq.WatsonStatus"
 VERSION="1.0.0"
 
 # Build release
@@ -29,7 +29,7 @@ cat > "$APP_NAME.app/Contents/Info.plist" << EOF
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>
-    <string>Watson GUI</string>
+    <string>Watson Status</string>
     <key>CFBundleVersion</key>
     <string>$VERSION</string>
     <key>CFBundleShortVersionString</key>

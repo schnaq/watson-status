@@ -1,4 +1,4 @@
-# Watson GUI
+# Watson Status
 
 Minimale macOS Menu-Bar App für [Watson](https://github.com/jazzband/Watson) Time Tracker.
 
@@ -17,17 +17,17 @@ Minimale macOS Menu-Bar App für [Watson](https://github.com/jazzband/Watson) Ti
 ## Build
 
 ```bash
-cd WatsonGUI
+cd WatsonStatus
 chmod +x build-app.sh
 ./build-app.sh
 ```
 
-Erstellt `WatsonGUI.app` (Bundle ID: `com.schnaq.WatsonGUI`).
+Erstellt `WatsonStatus.app` (Bundle ID: `com.schnaq.WatsonStatus`).
 
 ## Installation
 
 ```bash
-cp -r WatsonGUI.app /Applications/
+cp -r WatsonStatus.app /Applications/
 ```
 
 Optional zu Login Items hinzufügen für Autostart.
@@ -35,5 +35,5 @@ Optional zu Login Items hinzufügen für Autostart.
 ## Signierung
 
 ```bash
-codesign --force --deep --sign "Developer ID Application: DEIN NAME" WatsonGUI.app
+codesign --force --deep --sign "Developer ID Application: DEIN NAME" WatsonStatus.app
 ```
