@@ -1,74 +1,100 @@
 import AppKit
 
-// Global references
+// MARK: - Configuration
+let reminderIntervalMinutes: Double = 5
+let watsonPaths = ["/opt/homebrew/bin/watson", "/usr/local/bin/watson", "/usr/bin/watson"]
+
+// MARK: - State
 var statusItem: NSStatusItem!
 var timer: Timer?
 var reminderTimer: Timer?
-var lastTrackingState: Bool = false
+var lastTrackingState = false
 var idleStartTime: Date?
 var lastReminderTime: Date?
 var recentProjects: [(project: String, tags: [String])] = []
-let reminderIntervalMinutes: Double = 5
-var watsonPath: String = ""
+var watsonPath = ""
 
-func findWatsonPath() -> String {
-    // Try common paths first
-    let commonPaths = [
-        "/opt/homebrew/bin/watson",
-        "/usr/local/bin/watson",
-        "/usr/bin/watson"
-    ]
-    for path in commonPaths {
-        if FileManager.default.fileExists(atPath: path) {
-            return path
-        }
-    }
-
-    // Fallback to which
+// MARK: - Shell Helpers
+func runShell(_ command: String) -> String {
     let process = Process()
     let pipe = Pipe()
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "which watson"]
+    process.arguments = ["-l", "-c", command]
     process.standardOutput = pipe
+    process.standardError = pipe
     try? process.run()
     process.waitUntilExit()
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return path.isEmpty ? "/opt/homebrew/bin/watson" : path
+    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 }
 
+func findWatsonPath() -> String {
+    for path in watsonPaths {
+        if FileManager.default.fileExists(atPath: path) { return path }
+    }
+    let found = runShell("which watson")
+    return found.isEmpty ? watsonPaths[0] : found
+}
+
+// MARK: - Watson Commands
+func getWatsonStatus() -> (project: String, elapsed: String)? {
+    let output = runShell("\(watsonPath) status")
+    guard output.starts(with: "Project "), let range = output.range(of: " started ") else { return nil }
+
+    var project = String(output[..<range.lowerBound]).replacingOccurrences(of: "Project ", with: "")
+    project = project.replacingOccurrences(of: " \\[.*\\]", with: "", options: .regularExpression)
+
+    var elapsed = String(output[range.upperBound...])
+    elapsed = elapsed.replacingOccurrences(of: " ago", with: "")
+        .replacingOccurrences(of: " hours", with: "h").replacingOccurrences(of: " hour", with: "h")
+        .replacingOccurrences(of: " minutes", with: "m").replacingOccurrences(of: " minute", with: "m")
+        .replacingOccurrences(of: " seconds", with: "s").replacingOccurrences(of: " second", with: "s")
+
+    return (project, elapsed)
+}
+
+func getRecentProjects() -> [(project: String, tags: [String])] {
+    let output = runShell("\(watsonPath) log --json")
+    guard let data = output.data(using: .utf8),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+
+    var seen = Set<String>()
+    var results: [(String, [String])] = []
+    for entry in json {
+        guard let project = entry["project"] as? String else { continue }
+        let tags = entry["tags"] as? [String] ?? []
+        let key = "\(project)|\(tags.joined(separator: ","))"
+        if seen.insert(key).inserted {
+            results.append((project, tags))
+            if results.count >= 10 { break }
+        }
+    }
+    return results
+}
+
+// MARK: - Menu Handler
 class MenuHandler: NSObject {
     @objc func stopTracking() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "\(watsonPath) stop"]
-        try? process.run()
-        process.waitUntilExit()
+        _ = runShell("\(watsonPath) stop")
+        updateStatus()
+    }
+
+    @objc func startProject(_ sender: NSMenuItem) {
+        guard let (project, tags) = sender.representedObject as? (String, [String]) else { return }
+        let tagStr = tags.map { "+\($0)" }.joined(separator: " ")
+        _ = runShell("\(watsonPath) start \(project) \(tagStr)")
         updateStatus()
     }
 
     @objc func showStats() {
-        let process = Process()
-        let pipe = Pipe()
+        let output = runShell("\(watsonPath) report --day")
 
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "\(watsonPath) report --day"]
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        try? process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? "No data"
-
-        // Create a monospace text view for code-like display
         let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = NSColor(white: 0.1, alpha: 1.0)
         textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        textView.textColor = NSColor.white
+        textView.textColor = .white
         textView.string = output
         textView.textContainerInset = NSSize(width: 10, height: 10)
 
@@ -79,164 +105,62 @@ class MenuHandler: NSObject {
 
         let alert = NSAlert()
         alert.messageText = "Today's Time"
-        alert.alertStyle = .informational
         alert.accessoryView = scrollView
         alert.runModal()
+    }
+
+    @objc func handleSleep() {
+        if lastTrackingState { stopTracking() }
     }
 
     @objc func quitApp() {
         NSApp.terminate(nil)
     }
-
-    @objc func handleSleep() {
-        // Stop watson when Mac goes to sleep
-        if lastTrackingState {
-            stopTracking()
-        }
-    }
-
-    @objc func startProject(_ sender: NSMenuItem) {
-        guard let info = sender.representedObject as? (String, [String]) else { return }
-        let project = info.0
-        let tags = info.1
-        let tagStr = tags.map { "+\($0)" }.joined(separator: " ")
-        let cmd = "\(watsonPath) start \(project) \(tagStr)".trimmingCharacters(in: .whitespaces)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", cmd]
-        try? process.run()
-        process.waitUntilExit()
-        updateStatus()
-    }
 }
 
 let handler = MenuHandler()
 
-// Register for sleep notification
-NSWorkspace.shared.notificationCenter.addObserver(
-    handler,
-    selector: #selector(MenuHandler.handleSleep),
-    name: NSWorkspace.willSleepNotification,
-    object: nil
-)
-
-func getWatsonStatus() -> (String, String)? {
-    let process = Process()
-    let pipe = Pipe()
-
-    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "\(watsonPath) status"]
-    process.standardOutput = pipe
-    process.standardError = pipe
-
-    do {
-        try process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        if output.starts(with: "Project ") {
-            let parts = output.components(separatedBy: " started ")
-            if parts.count >= 2 {
-                var project = parts[0].replacingOccurrences(of: "Project ", with: "")
-                if let bracketRange = project.range(of: " \\[.*\\]", options: .regularExpression) {
-                    project = project.replacingCharacters(in: bracketRange, with: "")
-                }
-
-                var elapsed = parts[1]
-                if let agoRange = elapsed.range(of: " ago") {
-                    elapsed = String(elapsed[..<agoRange.lowerBound])
-                }
-                // Shorten: "14 minutes" -> "14m", "1 hour 30 minutes" -> "1h 30m"
-                elapsed = elapsed
-                    .replacingOccurrences(of: " hours", with: "h")
-                    .replacingOccurrences(of: " hour", with: "h")
-                    .replacingOccurrences(of: " minutes", with: "m")
-                    .replacingOccurrences(of: " minute", with: "m")
-                    .replacingOccurrences(of: " seconds", with: "s")
-                    .replacingOccurrences(of: " second", with: "s")
-
-                return (project, elapsed)
-            }
-        }
-    } catch {}
-
-    return nil
-}
-
-func getRecentProjects() -> [(project: String, tags: [String])] {
-    let process = Process()
-    let pipe = Pipe()
-
-    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "\(watsonPath) log --json"]
-    process.standardOutput = pipe
-    process.standardError = pipe
-
-    do {
-        try process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            var seen = Set<String>()
-            var results: [(String, [String])] = []
-            for entry in json {
-                if let project = entry["project"] as? String {
-                    let tags = entry["tags"] as? [String] ?? []
-                    let key = "\(project)|\(tags.joined(separator: ","))"
-                    if !seen.contains(key) {
-                        seen.insert(key)
-                        results.append((project, tags))
-                        if results.count >= 10 { break }
-                    }
-                }
-            }
-            return results
-        }
-    } catch {}
-
-    return []
+// MARK: - UI
+func setTitle(_ text: String, color: NSColor) {
+    let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: color]
+    statusItem.button?.attributedTitle = NSAttributedString(string: text, attributes: attrs)
 }
 
 func buildMenu(isTracking: Bool) {
     let menu = NSMenu()
 
     if isTracking {
-        let stopItem = NSMenuItem(title: "Stop Tracking", action: #selector(MenuHandler.stopTracking), keyEquivalent: "s")
-        stopItem.target = handler
-        menu.addItem(stopItem)
+        let item = NSMenuItem(title: "Stop Tracking", action: #selector(MenuHandler.stopTracking), keyEquivalent: "s")
+        item.target = handler
+        menu.addItem(item)
     } else {
-        let notTrackingItem = NSMenuItem(title: "Not tracking", action: nil, keyEquivalent: "")
-        notTrackingItem.isEnabled = false
-        menu.addItem(notTrackingItem)
+        let item = NSMenuItem(title: "Not tracking", action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
     }
 
-    menu.addItem(NSMenuItem.separator())
+    menu.addItem(.separator())
 
-    // Recent projects submenu
     if !recentProjects.isEmpty {
-        let startMenu = NSMenu()
-        for entry in recentProjects {
-            let title = entry.tags.isEmpty ? entry.project : "\(entry.project) [\(entry.tags.joined(separator: ", "))]"
-            let item = NSMenuItem(title: title, action: #selector(MenuHandler.startProject(_:)), keyEquivalent: "")
+        let submenu = NSMenu()
+        for (project, tags) in recentProjects {
+            let title = tags.isEmpty ? project : "\(project) [\(tags.joined(separator: ", "))]"
+            let item = NSMenuItem(title: title, action: #selector(MenuHandler.startProject), keyEquivalent: "")
             item.target = handler
-            item.representedObject = (entry.project, entry.tags)
-            startMenu.addItem(item)
+            item.representedObject = (project, tags)
+            submenu.addItem(item)
         }
         let startItem = NSMenuItem(title: "Start Project", action: nil, keyEquivalent: "")
-        startItem.submenu = startMenu
+        startItem.submenu = submenu
         menu.addItem(startItem)
-
-        menu.addItem(NSMenuItem.separator())
+        menu.addItem(.separator())
     }
 
     let statsItem = NSMenuItem(title: "Today's Stats", action: #selector(MenuHandler.showStats), keyEquivalent: "t")
     statsItem.target = handler
     menu.addItem(statsItem)
 
-    menu.addItem(NSMenuItem.separator())
+    menu.addItem(.separator())
 
     let quitItem = NSMenuItem(title: "Quit", action: #selector(MenuHandler.quitApp), keyEquivalent: "q")
     quitItem.target = handler
@@ -246,76 +170,47 @@ func buildMenu(isTracking: Bool) {
 }
 
 func updateStatus() {
-    let status = getWatsonStatus()
     recentProjects = getRecentProjects()
 
-    if let (project, elapsed) = status {
-        let title = "⏱ \(project) (\(elapsed))"
-        let attrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.systemGreen
-        ]
-        statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
+    if let (project, elapsed) = getWatsonStatus() {
+        setTitle("⏱ \(project) (\(elapsed))", color: .systemGreen)
         idleStartTime = nil
     } else {
-        let title = "⏸ Watson"
-        let attrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.systemOrange
-        ]
-        statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
-        if lastTrackingState && idleStartTime == nil {
-            idleStartTime = Date()
-        }
+        setTitle("⏸ Watson", color: .systemOrange)
+        if lastTrackingState { idleStartTime = Date() }
     }
 
-    lastTrackingState = status != nil
-    buildMenu(isTracking: status != nil)
+    let isTracking = getWatsonStatus() != nil
+    lastTrackingState = isTracking
+    buildMenu(isTracking: isTracking)
 }
 
 func checkIdleReminder() {
-    guard let idleStart = idleStartTime else { return }
-    guard !lastTrackingState else { return }
+    guard let idleStart = idleStartTime, !lastTrackingState else { return }
+    guard Date().timeIntervalSince(idleStart) / 60 >= reminderIntervalMinutes else { return }
+    guard CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved) <= 120 else { return }
+    guard lastReminderTime == nil || Date().timeIntervalSince(lastReminderTime!) >= 300 else { return }
 
-    let idleMinutes = Date().timeIntervalSince(idleStart) / 60
-
-    if idleMinutes >= reminderIntervalMinutes && !isSystemIdle() {
-        if let last = lastReminderTime, Date().timeIntervalSince(last) < 300 {
-            return
-        }
-
-        let alert = NSAlert()
-        alert.messageText = "Watson"
-        alert.informativeText = "Du trackst gerade keine Zeit!"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-
-        lastReminderTime = Date()
-    }
+    let alert = NSAlert()
+    alert.messageText = "Watson"
+    alert.informativeText = "Du trackst gerade keine Zeit!"
+    alert.alertStyle = .warning
+    alert.runModal()
+    lastReminderTime = Date()
 }
 
-func isSystemIdle() -> Bool {
-    let idleTime = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved)
-    return idleTime > 120
-}
-
-// Main
+// MARK: - Main
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
 watsonPath = findWatsonPath()
-
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-let initAttrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.systemOrange]
-statusItem.button?.attributedTitle = NSAttributedString(string: "⏸ Watson", attributes: initAttrs)
-buildMenu(isTracking: false)
+setTitle("⏸ Watson", color: .systemOrange)
+
+NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
+
 updateStatus()
-
-timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
-    updateStatus()
-}
-
-reminderTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-    checkIdleReminder()
-}
+timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in updateStatus() }
+reminderTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in checkIdleReminder() }
 
 app.run()
