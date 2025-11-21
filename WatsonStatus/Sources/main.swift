@@ -46,6 +46,7 @@ func getWatsonStatus() -> (project: String, elapsed: String)? {
 
     var elapsed = String(output[range.upperBound...])
     elapsed = elapsed.replacingOccurrences(of: " ago.*", with: "", options: .regularExpression)
+        .replacingOccurrences(of: " and ", with: " ")
         .replacingOccurrences(of: "an hour", with: "1h")
         .replacingOccurrences(of: "a minute", with: "1m")
         .replacingOccurrences(of: " hours", with: "h").replacingOccurrences(of: " hour", with: "h")
