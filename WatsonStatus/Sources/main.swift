@@ -7,7 +7,7 @@ var reminderTimer: Timer?
 var lastTrackingState: Bool = false
 var idleStartTime: Date?
 var lastReminderTime: Date?
-var recentProjects: [String] = []
+var recentProjects: [(project: String, tags: [String])] = []
 let reminderIntervalMinutes: Double = 5
 
 class MenuHandler: NSObject {
@@ -54,10 +54,14 @@ class MenuHandler: NSObject {
     }
 
     @objc func startProject(_ sender: NSMenuItem) {
-        guard let project = sender.representedObject as? String else { return }
+        guard let info = sender.representedObject as? (String, [String]) else { return }
+        let project = info.0
+        let tags = info.1
+        let tagStr = tags.map { "+\($0)" }.joined(separator: " ")
+        let cmd = "/opt/homebrew/bin/watson start \(project) \(tagStr)".trimmingCharacters(in: .whitespaces)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson start \(project)"]
+        process.arguments = ["-l", "-c", cmd]
         try? process.run()
         process.waitUntilExit()
         updateStatus()
@@ -111,12 +115,12 @@ func getWatsonStatus() -> (String, String)? {
     return nil
 }
 
-func getRecentProjects() -> [String] {
+func getRecentProjects() -> [(project: String, tags: [String])] {
     let process = Process()
     let pipe = Pipe()
 
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson projects"]
+    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson log --json"]
     process.standardOutput = pipe
     process.standardError = pipe
 
@@ -125,11 +129,22 @@ func getRecentProjects() -> [String] {
         process.waitUntilExit()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-        let projects = output.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        return Array(projects.prefix(5))
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            var seen = Set<String>()
+            var results: [(String, [String])] = []
+            for entry in json {
+                if let project = entry["project"] as? String {
+                    let tags = entry["tags"] as? [String] ?? []
+                    let key = "\(project)|\(tags.joined(separator: ","))"
+                    if !seen.contains(key) {
+                        seen.insert(key)
+                        results.append((project, tags))
+                        if results.count >= 10 { break }
+                    }
+                }
+            }
+            return results
+        }
     } catch {}
 
     return []
@@ -153,10 +168,11 @@ func buildMenu(isTracking: Bool) {
     // Recent projects submenu
     if !recentProjects.isEmpty {
         let startMenu = NSMenu()
-        for project in recentProjects {
-            let item = NSMenuItem(title: project, action: #selector(MenuHandler.startProject(_:)), keyEquivalent: "")
+        for entry in recentProjects {
+            let title = entry.tags.isEmpty ? entry.project : "\(entry.project) [\(entry.tags.joined(separator: ", "))]"
+            let item = NSMenuItem(title: title, action: #selector(MenuHandler.startProject(_:)), keyEquivalent: "")
             item.target = handler
-            item.representedObject = project
+            item.representedObject = (entry.project, entry.tags)
             startMenu.addItem(item)
         }
         let startItem = NSMenuItem(title: "Start Project", action: nil, keyEquivalent: "")
