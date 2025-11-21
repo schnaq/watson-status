@@ -35,10 +35,25 @@ class MenuHandler: NSObject {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8) ?? "No data"
 
+        // Create a monospace text view for code-like display
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.backgroundColor = NSColor(white: 0.1, alpha: 1.0)
+        textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.textColor = NSColor.white
+        textView.string = output
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
         let alert = NSAlert()
         alert.messageText = "Today's Time"
-        alert.informativeText = output
         alert.alertStyle = .informational
+        alert.accessoryView = scrollView
         alert.runModal()
     }
 
