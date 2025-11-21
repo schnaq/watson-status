@@ -9,12 +9,25 @@ var idleStartTime: Date?
 var lastReminderTime: Date?
 var recentProjects: [(project: String, tags: [String])] = []
 let reminderIntervalMinutes: Double = 5
+var watsonPath: String = ""
+
+func findWatsonPath() -> String {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+    process.arguments = ["-l", "-c", "which watson"]
+    process.standardOutput = pipe
+    try? process.run()
+    process.waitUntilExit()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "\(watsonPath)"
+}
 
 class MenuHandler: NSObject {
     @objc func stopTracking() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson stop"]
+        process.arguments = ["-l", "-c", "\(watsonPath) stop"]
         try? process.run()
         process.waitUntilExit()
         updateStatus()
@@ -25,7 +38,7 @@ class MenuHandler: NSObject {
         let pipe = Pipe()
 
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson report --day"]
+        process.arguments = ["-l", "-c", "\(watsonPath) report --day"]
         process.standardOutput = pipe
         process.standardError = pipe
 
@@ -73,7 +86,7 @@ class MenuHandler: NSObject {
         let project = info.0
         let tags = info.1
         let tagStr = tags.map { "+\($0)" }.joined(separator: " ")
-        let cmd = "/opt/homebrew/bin/watson start \(project) \(tagStr)".trimmingCharacters(in: .whitespaces)
+        let cmd = "\(watsonPath) start \(project) \(tagStr)".trimmingCharacters(in: .whitespaces)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-l", "-c", cmd]
@@ -98,7 +111,7 @@ func getWatsonStatus() -> (String, String)? {
     let pipe = Pipe()
 
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson status"]
+    process.arguments = ["-l", "-c", "\(watsonPath) status"]
     process.standardOutput = pipe
     process.standardError = pipe
 
@@ -143,7 +156,7 @@ func getRecentProjects() -> [(project: String, tags: [String])] {
     let pipe = Pipe()
 
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson log --json"]
+    process.arguments = ["-l", "-c", "\(watsonPath) log --json"]
     process.standardOutput = pipe
     process.standardError = pipe
 
@@ -278,6 +291,8 @@ func isSystemIdle() -> Bool {
 // Main
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
+
+watsonPath = findWatsonPath()
 
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 let initAttrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.systemOrange]
