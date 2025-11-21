@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 
 // MARK: - Configuration
 let reminderIntervalMinutes: Double = 5
@@ -188,7 +189,7 @@ func updateStatus() {
         setTitle("⏱ \(project) (\(elapsed))", color: .systemGreen)
         idleStartTime = nil
     } else {
-        setTitle("⏸ Watson", color: .systemOrange)
+        setTitle("⏱ —", color: .systemOrange)
         if lastTrackingState { idleStartTime = Date() }
     }
 
@@ -203,11 +204,19 @@ func checkIdleReminder() {
     guard CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved) <= 120 else { return }
     guard lastReminderTime == nil || Date().timeIntervalSince(lastReminderTime!) >= 300 else { return }
 
-    let alert = NSAlert()
-    alert.messageText = "Watson"
-    alert.informativeText = "Du trackst gerade keine Zeit!"
-    alert.alertStyle = .warning
-    alert.runModal()
+    // Send push notification instead of alert
+    let content = UNMutableNotificationContent()
+    content.title = "Watson"
+    content.body = "Hey, don't forget to track your time"
+    content.sound = .default
+
+    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+    UNUserNotificationCenter.current().add(request) { error in
+        if let error = error {
+            print("Error sending notification: \(error)")
+        }
+    }
+
     lastReminderTime = Date()
 }
 
@@ -215,9 +224,16 @@ func checkIdleReminder() {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
+// Request notification permissions
+UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+    if let error = error {
+        print("Error requesting notification permission: \(error)")
+    }
+}
+
 watsonPath = findWatsonPath()
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-setTitle("⏸ Watson", color: .systemOrange)
+setTitle("⏱ —", color: .systemOrange)
 
 NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
 
