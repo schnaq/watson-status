@@ -2,7 +2,7 @@
 set -e
 
 APP_NAME="WatsonGUI"
-BUNDLE_ID="com.schnaq.watson-gui"
+BUNDLE_ID="com.schnaq.WatsonGUI"
 VERSION="1.0.0"
 
 # Build release
