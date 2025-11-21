@@ -30,7 +30,18 @@ A minimal macOS menu bar application for the [Watson](https://github.com/jazzban
 
 ## Installation
 
-### Option 1: Build from source
+### Option 1: Download Pre-Built App (Recommended)
+
+A signed and notarized version of WatsonStatus is automatically built on every push to `main` and available as a GitHub Actions artifact:
+
+1. Go to [Actions](../../actions)
+2. Select the latest successful workflow run
+3. Download the `WatsonStatus-*.zip` artifact
+4. Extract and move `WatsonStatus.app` to `/Applications/`
+
+The app is fully signed and notarized - no security warnings!
+
+### Option 2: Build from Source
 
 ```bash
 cd WatsonStatus
@@ -39,11 +50,34 @@ chmod +x build-app.sh
 cp -r WatsonStatus.app /Applications/
 ```
 
-### Option 2: Add to Login Items
+### Option 3: Add to Login Items
 
 To launch automatically on startup:
 1. Open **System Settings** → **General** → **Login Items**
 2. Add `WatsonStatus.app` to the list
+
+## CI/CD - Automated Builds
+
+Every push to the `main` branch automatically triggers a GitHub Actions workflow that:
+
+- ✅ Builds the app with Swift
+- ✅ Signs the app with Apple Developer ID (Hardened Runtime + Timestamp)
+- ✅ Notarizes the app with Apple (required for macOS Big Sur+)
+- ✅ Uploads the signed and notarized `.app` as a GitHub Actions artifact
+- ✅ Retains artifacts for 90 days
+
+### Setting Up Code Signing
+
+For detailed instructions on setting up the required Apple Developer secrets, see **[CODESIGNING_SETUP.md](CODESIGNING_SETUP.md)**.
+
+You'll need to configure these 5 secrets in GitHub Actions:
+- `APPLE_CERTIFICATE_BASE64` - Base64-encoded .p12 certificate
+- `APPLE_CERTIFICATE_PASSWORD` - Password for the .p12 file
+- `APPLE_ID` - Apple Developer Account email
+- `APPLE_APP_SPECIFIC_PASSWORD` - App-specific password from appleid.apple.com
+- `APPLE_TEAM_ID` - 10-character Team ID from Apple Developer Portal
+
+See the [setup guide](CODESIGNING_SETUP.md) for step-by-step instructions on obtaining each secret.
 
 ## Usage
 
@@ -63,13 +97,15 @@ You can modify the reminder interval by editing `main.swift`:
 let reminderIntervalMinutes: Double = 5  // Change to your preference
 ```
 
-## Code Signing (Optional)
+## Code Signing (Manual)
 
-For distribution or to avoid Gatekeeper warnings:
+For manual code signing of local builds to avoid Gatekeeper warnings:
 
 ```bash
 codesign --force --deep --sign "Developer ID Application: YOUR NAME" WatsonStatus.app
 ```
+
+For automated CI/CD signing, see the [CI/CD section](#cicd---automated-builds) above.
 
 ## Architecture
 
@@ -93,11 +129,15 @@ codesign --force --deep --sign "Developer ID Application: YOUR NAME" WatsonStatu
 
 ```
 watson-status/
+├── .github/
+│   └── workflows/
+│       └── build-macos-app.yml    # CI/CD pipeline
 ├── WatsonStatus/
-│   ├── Package.swift          # Swift package manifest
+│   ├── Package.swift              # Swift package manifest
 │   ├── Sources/
-│   │   └── main.swift         # Main application code
-│   └── build-app.sh           # Build script
+│   │   └── main.swift             # Main application code
+│   └── build-app.sh               # Build script
+├── CODESIGNING_SETUP.md           # Code signing guide
 └── README.md
 ```
 
