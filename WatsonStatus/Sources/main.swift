@@ -116,7 +116,7 @@ func getRecentProjects() -> [String] {
     let pipe = Pipe()
 
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson log -n 50 --json"]
+    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson projects"]
     process.standardOutput = pipe
     process.standardError = pipe
 
@@ -125,18 +125,11 @@ func getRecentProjects() -> [String] {
         process.waitUntilExit()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            var seen = Set<String>()
-            var projects: [String] = []
-            for entry in json {
-                if let project = entry["project"] as? String, !seen.contains(project) {
-                    seen.insert(project)
-                    projects.append(project)
-                    if projects.count >= 5 { break }
-                }
-            }
-            return projects
-        }
+        let output = String(data: data, encoding: .utf8) ?? ""
+        let projects = output.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return Array(projects.prefix(5))
     } catch {}
 
     return []
