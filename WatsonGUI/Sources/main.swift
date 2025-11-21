@@ -1,6 +1,6 @@
 import AppKit
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class StatusBarController {
     var statusItem: NSStatusItem!
     var timer: Timer?
     var reminderTimer: Timer?
@@ -10,13 +10,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     let reminderIntervalMinutes: Double = 5
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide dock icon
-        NSApp.setActivationPolicy(.accessory)
-
+    init() {
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
+        if let button = statusItem.button {
+            button.title = "⏸ Watson"
+        }
+
+        buildMenu(isTracking: false)
         updateStatus()
 
         // Poll watson status every 5 seconds
@@ -69,12 +71,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            // Parse: "Project foo [tag1 tag2] started 1h 30m ago (2024-01-01 10:00:00+0100)"
             if output.starts(with: "Project ") {
                 let parts = output.components(separatedBy: " started ")
                 if parts.count >= 2 {
                     var project = parts[0].replacingOccurrences(of: "Project ", with: "")
-                    // Remove tags in brackets
                     if let bracketRange = project.range(of: " \\[.*\\]", options: .regularExpression) {
                         project = project.replacingCharacters(in: bracketRange, with: "")
                     }
@@ -113,7 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -157,9 +157,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let idleMinutes = Date().timeIntervalSince(idleStartTime!) / 60
 
-        // Only remind if not tracking for 5+ min and system is active
         if idleMinutes >= reminderIntervalMinutes && !isSystemIdle() {
-            // Don't spam - wait at least 5 min between reminders
             if let last = lastReminderTime, Date().timeIntervalSince(last) < 300 {
                 return
             }
@@ -169,7 +167,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func isSystemIdle() -> Bool {
-        // Check if system has been idle (no user input) for more than 2 minutes
         let idleTime = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved)
         return idleTime > 120
     }
@@ -185,13 +182,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func quit() {
+    @objc func quitApp() {
         NSApp.terminate(nil)
     }
 }
 
-// Main entry point
+// Main
 let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
+app.setActivationPolicy(.accessory)
+
+let controller = StatusBarController()
+_ = controller // Keep reference alive
+
 app.run()
