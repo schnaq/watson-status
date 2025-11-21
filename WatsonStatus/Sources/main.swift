@@ -20,7 +20,8 @@ func findWatsonPath() -> String {
     try? process.run()
     process.waitUntilExit()
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "/opt/homebrew/bin/watson"
+    let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return path.isEmpty ? "/opt/homebrew/bin/watson" : path
 }
 
 class MenuHandler: NSObject {
