@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 @main
 struct WatsonGUIApp: App {
@@ -12,22 +11,19 @@ struct WatsonGUIApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var timer: Timer?
     var reminderTimer: Timer?
     var lastTrackingState: Bool = false
     var idleStartTime: Date?
+    var lastReminderTime: Date?
 
     let reminderIntervalMinutes: Double = 5
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide dock icon
         NSApp.setActivationPolicy(.accessory)
-
-        // Request notification permission
-        UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -57,7 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     self.idleStartTime = nil
                 } else {
                     button.title = "⏸ Watson"
-                    if self.lastTrackingState {
+                    if self.lastTrackingState && self.idleStartTime == nil {
                         self.idleStartTime = Date()
                     }
                 }
@@ -167,13 +163,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func checkIdleReminder() {
-        guard let idleStart = idleStartTime else { return }
+        guard idleStartTime != nil else { return }
+        guard !lastTrackingState else { return }
 
-        let idleMinutes = Date().timeIntervalSince(idleStart) / 60
+        let idleMinutes = Date().timeIntervalSince(idleStartTime!) / 60
 
+        // Only remind if not tracking for 5+ min and system is active
         if idleMinutes >= reminderIntervalMinutes && !isSystemIdle() {
+            // Don't spam - wait at least 5 min between reminders
+            if let last = lastReminderTime, Date().timeIntervalSince(last) < 300 {
+                return
+            }
             sendReminder()
-            idleStartTime = Date() // Reset to avoid spam
+            lastReminderTime = Date()
         }
     }
 
@@ -184,17 +186,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func sendReminder() {
-        let content = UNMutableNotificationContent()
-        content.title = "Watson"
-        content.body = "Du trackst gerade keine Zeit!"
-        content.sound = .default
-
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        return [.banner, .sound]
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Watson"
+            alert.informativeText = "Du trackst gerade keine Zeit!"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     @objc func quit() {
