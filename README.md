@@ -32,7 +32,26 @@ cp -r WatsonStatus.app /Applications/
 
 Optional zu Login Items hinzufügen für Autostart.
 
-## Signierung
+## CI/CD - Automatische Builds
+
+Bei jedem Push zum `main` Branch wird automatisch eine signierte und notarisierte `.app` erstellt und als GitHub Actions Artefakt gespeichert.
+
+### Setup für Code Signing
+
+Die vollständige Anleitung zur Einrichtung der Apple Code Signing Secrets findest du in: **[CODESIGNING_SETUP.md](CODESIGNING_SETUP.md)**
+
+### Download der signierten App
+
+1. Gehe zu [Actions](../../actions)
+2. Wähle den neuesten erfolgreichen Workflow-Run
+3. Lade das Artefakt `WatsonStatus-*.zip` herunter
+4. Entpacke und verschiebe `WatsonStatus.app` nach `/Applications/`
+
+Die App ist vollständig signiert und notarisiert und läuft ohne Sicherheitswarnungen.
+
+## Manuelle Signierung (optional)
+
+Für lokale Builds:
 
 ```bash
 codesign --force --deep --sign "Developer ID Application: DEIN NAME" WatsonStatus.app
