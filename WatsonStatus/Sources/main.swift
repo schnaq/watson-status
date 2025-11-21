@@ -223,18 +223,22 @@ func updateStatus() {
     recentProjects = getRecentProjects()
 
     if let (project, elapsed) = status {
-        let title = "⏱ \(project) (\(elapsed))"
+        let title = " \(project) (\(elapsed))"
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.systemGreen
         ]
         statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
+        statusItem.button?.image = NSImage(systemSymbolName: "stopwatch.fill", accessibilityDescription: "Tracking")
+        statusItem.button?.image?.isTemplate = true
         idleStartTime = nil
     } else {
-        let title = "⏸ Watson"
+        let title = " Watson"
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.systemOrange
         ]
         statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
+        statusItem.button?.image = NSImage(systemSymbolName: "stopwatch", accessibilityDescription: "Paused")
+        statusItem.button?.image?.isTemplate = true
         if lastTrackingState && idleStartTime == nil {
             idleStartTime = Date()
         }
@@ -277,7 +281,10 @@ app.setActivationPolicy(.accessory)
 
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 let initAttrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.systemOrange]
-statusItem.button?.attributedTitle = NSAttributedString(string: "⏸ Watson", attributes: initAttrs)
+statusItem.button?.attributedTitle = NSAttributedString(string: " Watson", attributes: initAttrs)
+statusItem.button?.image = NSImage(systemSymbolName: "stopwatch", accessibilityDescription: "Paused")
+statusItem.button?.image?.isTemplate = true
+statusItem.button?.imagePosition = .imageLeft
 buildMenu(isTracking: false)
 updateStatus()
 
