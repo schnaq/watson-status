@@ -1,6 +1,6 @@
 import AppKit
 
-class StatusBarController {
+class StatusBarController: NSObject {
     var statusItem: NSStatusItem!
     var timer: Timer?
     var reminderTimer: Timer?
