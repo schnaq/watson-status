@@ -12,6 +12,19 @@ let reminderIntervalMinutes: Double = 5
 var watsonPath: String = ""
 
 func findWatsonPath() -> String {
+    // Try common paths first
+    let commonPaths = [
+        "/opt/homebrew/bin/watson",
+        "/usr/local/bin/watson",
+        "/usr/bin/watson"
+    ]
+    for path in commonPaths {
+        if FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+    }
+
+    // Fallback to which
     let process = Process()
     let pipe = Pipe()
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
