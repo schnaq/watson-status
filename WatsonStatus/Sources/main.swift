@@ -44,9 +44,24 @@ class MenuHandler: NSObject {
     @objc func quitApp() {
         NSApp.terminate(nil)
     }
+
+    @objc func handleSleep() {
+        // Stop watson when Mac goes to sleep
+        if lastTrackingState {
+            stopTracking()
+        }
+    }
 }
 
 let handler = MenuHandler()
+
+// Register for sleep notification
+NSWorkspace.shared.notificationCenter.addObserver(
+    handler,
+    selector: #selector(MenuHandler.handleSleep),
+    name: NSWorkspace.willSleepNotification,
+    object: nil
+)
 
 func getWatsonStatus() -> (String, String)? {
     let process = Process()
