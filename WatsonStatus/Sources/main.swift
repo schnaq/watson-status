@@ -200,10 +200,18 @@ func updateStatus() {
     recentProjects = getRecentProjects()
 
     if let (project, elapsed) = status {
-        statusItem.button?.title = "⏱ \(project) (\(elapsed))"
+        let title = "⏱ \(project) (\(elapsed))"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.systemGreen
+        ]
+        statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
         idleStartTime = nil
     } else {
-        statusItem.button?.title = "⏸ Watson"
+        let title = "⏸ Watson"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.systemOrange
+        ]
+        statusItem.button?.attributedTitle = NSAttributedString(string: title, attributes: attrs)
         if lastTrackingState && idleStartTime == nil {
             idleStartTime = Date()
         }
@@ -245,7 +253,8 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-statusItem.button?.title = "⏸ Watson"
+let initAttrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.systemOrange]
+statusItem.button?.attributedTitle = NSAttributedString(string: "⏸ Watson", attributes: initAttrs)
 buildMenu(isTracking: false)
 updateStatus()
 
