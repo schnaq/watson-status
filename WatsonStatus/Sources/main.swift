@@ -189,7 +189,7 @@ func updateStatus() {
         setTitle("⏱ \(project) (\(elapsed))", color: .systemGreen)
         idleStartTime = nil
     } else {
-        setTitle("⏱ ...", color: .systemOrange)
+        setTitle("⏱ —", color: .systemOrange)
         if lastTrackingState { idleStartTime = Date() }
     }
 
@@ -233,7 +233,7 @@ UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound
 
 watsonPath = findWatsonPath()
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-setTitle("⏱ ...", color: .systemOrange)
+setTitle("⏱ —", color: .systemOrange)
 
 NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
 
