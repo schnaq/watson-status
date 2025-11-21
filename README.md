@@ -7,7 +7,7 @@ Minimale macOS Menu-Bar App für [Watson](https://github.com/jazzband/Watson) Ti
 - Zeigt aktuellen Tracking-Status in der Menu-Bar (Projekt + Dauer)
 - "Stop Tracking" per Klick
 - Tagesstatistik anzeigen
-- Push-Erinnerung nach 5 Minuten ohne Tracking (wenn Mac aktiv)
+- Erinnerung nach 5 Minuten ohne Tracking (wenn Mac aktiv)
 
 ## Voraussetzungen
 
@@ -18,22 +18,22 @@ Minimale macOS Menu-Bar App für [Watson](https://github.com/jazzband/Watson) Ti
 
 ```bash
 cd WatsonGUI
-swift build -c release
+chmod +x build-app.sh
+./build-app.sh
 ```
 
-Das Binary liegt dann unter `.build/release/WatsonGUI`.
+Erstellt `WatsonGUI.app` (Bundle ID: `com.schnaq.WatsonGUI`).
 
 ## Installation
 
-1. Binary nach `/Applications` oder `~/Applications` kopieren
-2. Bei Bedarf signieren: `codesign --sign "Developer ID" WatsonGUI`
-3. Optional: Zu Login Items hinzufügen für Autostart
-
-## Xcode-Projekt erstellen (für Signierung)
-
 ```bash
-cd WatsonGUI
-swift package generate-xcodeproj
+cp -r WatsonGUI.app /Applications/
 ```
 
-Dann in Xcode öffnen und Signing konfigurieren.
+Optional zu Login Items hinzufügen für Autostart.
+
+## Signierung
+
+```bash
+codesign --force --deep --sign "Developer ID Application: DEIN NAME" WatsonGUI.app
+```
