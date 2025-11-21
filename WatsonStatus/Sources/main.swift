@@ -106,6 +106,14 @@ func getWatsonStatus() -> (String, String)? {
                 if let agoRange = elapsed.range(of: " ago") {
                     elapsed = String(elapsed[..<agoRange.lowerBound])
                 }
+                // Shorten: "14 minutes" -> "14m", "1 hour 30 minutes" -> "1h 30m"
+                elapsed = elapsed
+                    .replacingOccurrences(of: " hours", with: "h")
+                    .replacingOccurrences(of: " hour", with: "h")
+                    .replacingOccurrences(of: " minutes", with: "m")
+                    .replacingOccurrences(of: " minute", with: "m")
+                    .replacingOccurrences(of: " seconds", with: "s")
+                    .replacingOccurrences(of: " second", with: "s")
 
                 return (project, elapsed)
             }
