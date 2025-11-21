@@ -7,6 +7,7 @@ var reminderTimer: Timer?
 var lastTrackingState: Bool = false
 var idleStartTime: Date?
 var lastReminderTime: Date?
+var recentProjects: [String] = []
 let reminderIntervalMinutes: Double = 5
 
 class MenuHandler: NSObject {
@@ -50,6 +51,16 @@ class MenuHandler: NSObject {
         if lastTrackingState {
             stopTracking()
         }
+    }
+
+    @objc func startProject(_ sender: NSMenuItem) {
+        guard let project = sender.representedObject as? String else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson start \(project)"]
+        try? process.run()
+        process.waitUntilExit()
+        updateStatus()
     }
 }
 
@@ -100,6 +111,37 @@ func getWatsonStatus() -> (String, String)? {
     return nil
 }
 
+func getRecentProjects() -> [String] {
+    let process = Process()
+    let pipe = Pipe()
+
+    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+    process.arguments = ["-l", "-c", "/opt/homebrew/bin/watson log -n 50 --json"]
+    process.standardOutput = pipe
+    process.standardError = pipe
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            var seen = Set<String>()
+            var projects: [String] = []
+            for entry in json {
+                if let project = entry["project"] as? String, !seen.contains(project) {
+                    seen.insert(project)
+                    projects.append(project)
+                    if projects.count >= 5 { break }
+                }
+            }
+            return projects
+        }
+    } catch {}
+
+    return []
+}
+
 func buildMenu(isTracking: Bool) {
     let menu = NSMenu()
 
@@ -114,6 +156,22 @@ func buildMenu(isTracking: Bool) {
     }
 
     menu.addItem(NSMenuItem.separator())
+
+    // Recent projects submenu
+    if !recentProjects.isEmpty {
+        let startMenu = NSMenu()
+        for project in recentProjects {
+            let item = NSMenuItem(title: project, action: #selector(MenuHandler.startProject(_:)), keyEquivalent: "")
+            item.target = handler
+            item.representedObject = project
+            startMenu.addItem(item)
+        }
+        let startItem = NSMenuItem(title: "Start Project", action: nil, keyEquivalent: "")
+        startItem.submenu = startMenu
+        menu.addItem(startItem)
+
+        menu.addItem(NSMenuItem.separator())
+    }
 
     let statsItem = NSMenuItem(title: "Today's Stats", action: #selector(MenuHandler.showStats), keyEquivalent: "t")
     statsItem.target = handler
@@ -130,6 +188,7 @@ func buildMenu(isTracking: Bool) {
 
 func updateStatus() {
     let status = getWatsonStatus()
+    recentProjects = getRecentProjects()
 
     if let (project, elapsed) = status {
         statusItem.button?.title = "⏱ \(project) (\(elapsed))"
