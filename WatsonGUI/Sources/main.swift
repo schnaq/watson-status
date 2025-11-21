@@ -10,7 +10,9 @@ class StatusBarController: NSObject {
 
     let reminderIntervalMinutes: Double = 5
 
-    init() {
+    override init() {
+        super.init()
+
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
