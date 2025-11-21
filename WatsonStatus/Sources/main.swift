@@ -44,14 +44,23 @@ func getWatsonStatus() -> (project: String, elapsed: String)? {
     var project = String(output[..<range.lowerBound]).replacingOccurrences(of: "Project ", with: "")
     project = project.replacingOccurrences(of: " \\[.*\\]", with: "", options: .regularExpression)
 
-    var elapsed = String(output[range.upperBound...])
-    elapsed = elapsed.replacingOccurrences(of: " ago.*", with: "", options: .regularExpression)
-        .replacingOccurrences(of: " and ", with: " ")
-        .replacingOccurrences(of: "an hour", with: "1h")
-        .replacingOccurrences(of: "a minute", with: "1m")
-        .replacingOccurrences(of: " hours", with: "h").replacingOccurrences(of: " hour", with: "h")
-        .replacingOccurrences(of: " minutes", with: "m").replacingOccurrences(of: " minute", with: "m")
-        .replacingOccurrences(of: " seconds", with: "s").replacingOccurrences(of: " second", with: "s")
+    // Parse timestamp from output (format: 2025.11.21 15:29:39+0100)
+    var elapsed = "?"
+    if let tsMatch = output.range(of: "\\d{4}\\.\\d{2}\\.\\d{2} \\d{2}:\\d{2}:\\d{2}", options: .regularExpression) {
+        let tsString = String(output[tsMatch])
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd HH:mm:ss"
+        if let startDate = formatter.date(from: tsString) {
+            let seconds = Int(Date().timeIntervalSince(startDate))
+            let hours = seconds / 3600
+            let minutes = (seconds % 3600) / 60
+            if hours > 0 {
+                elapsed = "\(hours)h\(minutes)m"
+            } else {
+                elapsed = "\(minutes)m"
+            }
+        }
+    }
 
     return (project, elapsed)
 }
