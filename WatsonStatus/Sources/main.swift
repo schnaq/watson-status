@@ -249,7 +249,13 @@ func updateStatus() {
         idleStartTime = nil
     } else {
         setTitle("⏱ —", color: .systemOrange)
-        if lastTrackingState { idleStartTime = Date() }
+        if lastTrackingState {
+            // Transition from tracking to not tracking
+            idleStartTime = Date()
+        } else if idleStartTime == nil {
+            // App start or first check: no tracking active
+            idleStartTime = Date()
+        }
     }
 
     let isTracking = getWatsonStatus() != nil
