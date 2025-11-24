@@ -43,12 +43,21 @@ The app is fully signed and notarized - no security warnings!
 
 ### Option 2: Build from Source
 
+**Important:** The build script automatically signs the app with an ad-hoc signature, which is required for notifications to work.
+
 ```bash
 cd WatsonStatus
 chmod +x build-app.sh
 ./build-app.sh
+
+# Install to /Applications (required for notifications)
 cp -r WatsonStatus.app /Applications/
+
+# Launch and allow notifications when prompted
+open /Applications/WatsonStatus.app
 ```
+
+**Note:** If you've run an older version before, you may need to reset macOS notification permissions. See [Troubleshooting → Notifications](#notifications-not-showing).
 
 ### Option 3: Add to Login Items
 
@@ -115,6 +124,8 @@ For automated CI/CD signing, see the [CI/CD section](#cicd---automated-builds) a
 - **Frameworks**: AppKit, UserNotifications
 - **Build System**: Swift Package Manager
 - **Bundle ID**: `com.schnaq.WatsonStatus`
+- **Code Signing**: Ad-hoc signature for local builds, Developer ID for distribution
+- **Entitlements**: Notifications enabled (no sandbox for Watson CLI access)
 
 ## How It Works
 
@@ -189,6 +200,54 @@ Alternatively, manually enable in:
 - On first launch, macOS should prompt you to allow notifications
 - If you accidentally denied permission, use the menu to check and enable it
 - The app will display helpful messages in the console/logs about notification status
+
+#### App doesn't appear in Notification Settings
+
+If WatsonStatus doesn't appear in **System Settings → Notifications**, this means macOS hasn't recognized the app properly. This can happen when:
+
+1. **The app wasn't properly signed** - The build script now automatically ad-hoc signs the app
+2. **macOS cached an old version** - Follow the reset steps below
+3. **The app wasn't launched from /Applications** - Always install to /Applications folder
+
+**Solution - Complete Reset:**
+
+```bash
+# 1. Quit WatsonStatus completely
+killall WatsonStatus 2>/dev/null
+
+# 2. Remove old installation
+rm -rf /Applications/WatsonStatus.app
+
+# 3. Reset macOS notification permission cache
+tccutil reset UserNotifications com.schnaq.WatsonStatus
+
+# 4. Rebuild and reinstall
+cd WatsonStatus
+./build-app.sh
+cp -r WatsonStatus.app /Applications/
+
+# 5. Restart your Mac (IMPORTANT - macOS caches notification settings)
+sudo shutdown -r now
+```
+
+**After restart:**
+1. Launch WatsonStatus from `/Applications/`
+2. macOS should now prompt for notification permission
+3. Click "Allow" when prompted
+4. Verify in **System Settings → Notifications** that WatsonStatus appears
+
+**Still not working?**
+
+Check the Console app for errors:
+```bash
+# Open Console.app and filter for "WatsonStatus"
+open -a Console
+```
+
+Look for errors related to:
+- `UserNotifications` framework
+- TCC (Transparency, Consent, and Control) database
+- Code signing issues
 
 ### App doesn't update
 Ensure Watson is properly configured and responding to CLI commands:
