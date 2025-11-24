@@ -1,0 +1,144 @@
+name: Build and Sign macOS App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-sign:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Import Code Signing Certificates
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Decode certificate from base64
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > $CERTIFICATE_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k $KEYCHAIN_PATH
+
+          # Set keychain as default
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Enable codesigning from keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Build App
+        run: |
+          cd WatsonStatus
+          chmod +x build-app.sh
+          ./build-app.sh
+
+      - name: Sign App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd WatsonStatus
+
+          # Find the Developer ID Application certificate
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.+)"/\1/')
+
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "Error: No Developer ID Application certificate found"
+            exit 1
+          fi
+
+          echo "Using signing identity: $SIGNING_IDENTITY"
+
+          # Sign the app with hardened runtime and timestamp
+          codesign \
+            --sign "$SIGNING_IDENTITY" \
+            --force \
+            --options runtime \
+            --timestamp \
+            --deep \
+            --verbose \
+            WatsonStatus.app
+
+          # Verify signature
+          codesign --verify --verbose=4 WatsonStatus.app
+          spctl --assess --verbose=4 --type execute WatsonStatus.app
+
+      - name: Create ZIP for Notarization
+        run: |
+          cd WatsonStatus
+          ditto -c -k --keepParent WatsonStatus.app WatsonStatus.zip
+
+      - name: Notarize App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd WatsonStatus
+
+          # Submit for notarization
+          echo "Submitting app for notarization..."
+          xcrun notarytool submit WatsonStatus.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+
+          # Staple the notarization ticket
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple WatsonStatus.app
+
+          # Verify notarization
+          echo "Verifying notarization..."
+          xcrun stapler validate WatsonStatus.app
+
+          # Re-create ZIP with stapled app
+          rm WatsonStatus.zip
+          ditto -c -k --keepParent WatsonStatus.app WatsonStatus.zip
+
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WatsonStatus-${{ github.sha }}
+          path: WatsonStatus/WatsonStatus.zip
+          retention-days: 90
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: WatsonStatus-app-${{ github.sha }}
+          path: WatsonStatus/WatsonStatus.app
+          retention-days: 90
+
+      - name: Cleanup Keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain $KEYCHAIN_PATH
+          fi

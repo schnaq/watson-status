@@ -1,1 +1,23 @@
+# Swift build artifacts
 .build/
+
+# macOS build artifacts
+*.app
+*.zip
+*.dmg
+*.pkg
+
+# Code signing
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
