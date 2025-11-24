@@ -87,6 +87,7 @@ See the [setup guide](CODESIGNING_SETUP.md) for step-by-step instructions on obt
 - **Stop Tracking** - Stops the current time tracking session (shortcut: `⌘S`)
 - **Start Project** - Submenu with your 10 most recent projects
 - **Today's Stats** - Shows detailed daily time report (shortcut: `⌘T`)
+- **Notification Settings…** - Check notification permission status and enable if needed
 - **Quit** - Exit the application (shortcut: `⌘Q`)
 
 ### Configuration
@@ -166,8 +167,28 @@ The app searches for Watson in these locations:
 - PATH environment variable
 
 ### Notifications not showing
-Grant notification permissions when prompted on first launch, or manually enable in:
+
+**WatsonStatus needs notification permissions to send reminders when you're not tracking time.**
+
+#### Checking Permission Status
+1. Click the WatsonStatus menu bar icon
+2. Select **Notification Settings…**
+3. The app will show whether notifications are enabled or disabled
+
+#### Enabling Notifications
+If notifications are disabled:
+1. Click **Notification Settings…** in the menu
+2. Click **Open Settings** to go directly to System Settings
+3. Find **WatsonStatus** in the list
+4. Toggle on **Allow Notifications**
+
+Alternatively, manually enable in:
 **System Settings** → **Notifications** → **WatsonStatus**
+
+#### First Launch Behavior
+- On first launch, macOS should prompt you to allow notifications
+- If you accidentally denied permission, use the menu to check and enable it
+- The app will display helpful messages in the console/logs about notification status
 
 ### App doesn't update
 Ensure Watson is properly configured and responding to CLI commands:
