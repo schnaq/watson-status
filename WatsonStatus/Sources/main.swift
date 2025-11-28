@@ -14,6 +14,7 @@ var idleStartTime: Date?
 var lastReminderTime: Date?
 var recentProjects: [(project: String, tags: [String])] = []
 var watsonPath = ""
+var notificationPermissionGranted = false
 
 // MARK: - Shell Helpers
 func runShell(_ command: String) -> String {
@@ -35,6 +36,34 @@ func findWatsonPath() -> String {
     }
     let found = runShell("which watson")
     return found.isEmpty ? watsonPaths[0] : found
+}
+
+// MARK: - Notification Helpers
+func checkNotificationPermission(completion: @escaping (Bool) -> Void) {
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+        DispatchQueue.main.async {
+            let granted = settings.authorizationStatus == .authorized
+            notificationPermissionGranted = granted
+            completion(granted)
+        }
+    }
+}
+
+func requestNotificationPermission(completion: @escaping (Bool) -> Void) {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+        DispatchQueue.main.async {
+            if let error = error {
+                print("Error requesting notification permission: \(error)")
+            }
+            notificationPermissionGranted = granted
+            if granted {
+                print("Notification permission granted")
+            } else {
+                print("Notification permission denied. Please enable in System Settings → Notifications → WatsonStatus")
+            }
+            completion(granted)
+        }
+    }
 }
 
 // MARK: - Watson Commands
@@ -132,6 +161,30 @@ class MenuHandler: NSObject {
         }
     }
 
+    @objc func checkNotifications() {
+        checkNotificationPermission { granted in
+            let alert = NSAlert()
+            alert.messageText = "Notification Settings"
+
+            if granted {
+                alert.informativeText = "✅ Notifications are enabled.\n\nYou will receive reminders when you're not tracking time."
+                alert.addButton(withTitle: "OK")
+            } else {
+                alert.informativeText = "⚠️ Notifications are disabled.\n\nWatsonStatus cannot remind you to track time without notification permission.\n\nTo enable notifications:\n1. Click 'Open Settings' below\n2. Find WatsonStatus in the list\n3. Enable 'Allow Notifications'"
+                alert.addButton(withTitle: "Open Settings")
+                alert.addButton(withTitle: "Cancel")
+            }
+
+            let response = alert.runModal()
+            if !granted && response == .alertFirstButtonReturn {
+                // Open System Settings to Notifications
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        }
+    }
+
     @objc func quitApp() {
         NSApp.terminate(nil)
     }
@@ -181,6 +234,12 @@ func buildMenu(isTracking: Bool) {
 
     menu.addItem(.separator())
 
+    let notifItem = NSMenuItem(title: "Notification Settings…", action: #selector(MenuHandler.checkNotifications), keyEquivalent: "")
+    notifItem.target = handler
+    menu.addItem(notifItem)
+
+    menu.addItem(.separator())
+
     let quitItem = NSMenuItem(title: "Quit", action: #selector(MenuHandler.quitApp), keyEquivalent: "q")
     quitItem.target = handler
     menu.addItem(quitItem)
@@ -196,7 +255,13 @@ func updateStatus() {
         idleStartTime = nil
     } else {
         setTitle("⏱ —", color: .systemOrange)
-        if lastTrackingState { idleStartTime = Date() }
+        if lastTrackingState {
+            // Transition from tracking to not tracking
+            idleStartTime = Date()
+        } else if idleStartTime == nil {
+            // App start or first check: no tracking active
+            idleStartTime = Date()
+        }
     }
 
     let isTracking = getWatsonStatus() != nil
@@ -210,7 +275,14 @@ func checkIdleReminder() {
     guard CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved) <= 120 else { return }
     guard lastReminderTime == nil || Date().timeIntervalSince(lastReminderTime!) >= 300 else { return }
 
-    // Send push notification instead of alert
+    // Check notification permission before sending
+    guard notificationPermissionGranted else {
+        print("Cannot send notification: Permission not granted. Please enable in System Settings → Notifications → WatsonStatus")
+        lastReminderTime = Date() // Avoid spamming logs
+        return
+    }
+
+    // Send push notification
     let content = UNMutableNotificationContent()
     content.title = "Watson"
     content.body = "Hey, don't forget to track your time"
@@ -230,13 +302,6 @@ func checkIdleReminder() {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-// Request notification permissions
-UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-    if let error = error {
-        print("Error requesting notification permission: \(error)")
-    }
-}
-
 watsonPath = findWatsonPath()
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 setTitle("⏱ —", color: .systemOrange)
@@ -244,6 +309,21 @@ setTitle("⏱ —", color: .systemOrange)
 // Register for both sleep notifications to ensure we catch the event
 NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
 NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.screensDidSleepNotification, object: nil)
+
+// Check existing notification permissions or request if needed
+checkNotificationPermission { granted in
+    if !granted {
+        // Request notification permissions on first launch
+        requestNotificationPermission { newGranted in
+            if !newGranted {
+                print("⚠️  Notification permission denied. Reminders will not work.")
+                print("    Enable in: System Settings → Notifications → WatsonStatus")
+            }
+        }
+    } else {
+        print("✅ Notification permission granted")
+    }
+}
 
 updateStatus()
 timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in updateStatus() }
