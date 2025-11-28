@@ -73,18 +73,20 @@ jobs:
 
           echo "Using signing identity: $SIGNING_IDENTITY"
 
-          # Sign the app with hardened runtime and timestamp
+          # Sign the app with hardened runtime, entitlements and timestamp
           codesign \
             --sign "$SIGNING_IDENTITY" \
             --force \
             --options runtime \
             --timestamp \
+            --entitlements WatsonStatus.app/Contents/entitlements.plist \
             --deep \
             --verbose \
             WatsonStatus.app
 
           # Verify signature
           codesign --verify --verbose=4 WatsonStatus.app
+          codesign --display --entitlements - WatsonStatus.app
           spctl --assess --verbose=4 --type execute WatsonStatus.app
 
       - name: Create ZIP for Notarization
