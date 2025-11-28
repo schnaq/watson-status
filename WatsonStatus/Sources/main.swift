@@ -123,7 +123,13 @@ class MenuHandler: NSObject {
     }
 
     @objc func handleSleep() {
-        if lastTrackingState { stopTracking() }
+        // Check current Watson status directly instead of relying on cached state
+        let output = runShell("\(watsonPath) status")
+        if output.starts(with: "Project ") {
+            print("Sleep detected - stopping Watson tracking")
+            _ = runShell("\(watsonPath) stop")
+            updateStatus()
+        }
     }
 
     @objc func quitApp() {
@@ -235,7 +241,9 @@ watsonPath = findWatsonPath()
 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 setTitle("⏱ —", color: .systemOrange)
 
+// Register for both sleep notifications to ensure we catch the event
 NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
+NSWorkspace.shared.notificationCenter.addObserver(handler, selector: #selector(MenuHandler.handleSleep), name: NSWorkspace.screensDidSleepNotification, object: nil)
 
 updateStatus()
 timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in updateStatus() }
