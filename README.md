@@ -96,6 +96,7 @@ See the [setup guide](CODESIGNING_SETUP.md) for step-by-step instructions on obt
 - **Stop Tracking** - Stops the current time tracking session (shortcut: `⌘S`)
 - **Start Project** - Submenu with your 10 most recent projects
 - **Today's Stats** - Shows detailed daily time report (shortcut: `⌘T`)
+- **Yesterday's Stats** - Shows detailed time report for yesterday (shortcut: `⌘Y`)
 - **Notification Settings…** - Check notification permission status and enable if needed
 - **Quit** - Exit the application (shortcut: `⌘Q`)
 

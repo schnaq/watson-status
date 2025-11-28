@@ -151,6 +151,36 @@ class MenuHandler: NSObject {
         alert.runModal()
     }
 
+    @objc func showYesterdayStats() {
+        // Calculate yesterday's date
+        let calendar = Calendar.current
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) else { return }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let yesterdayStr = formatter.string(from: yesterday)
+
+        let output = runShell("\(watsonPath) report --from \(yesterdayStr) --to \(yesterdayStr)")
+
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.backgroundColor = NSColor(white: 0.1, alpha: 1.0)
+        textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.textColor = .white
+        textView.string = output
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
+        let alert = NSAlert()
+        alert.messageText = "Yesterday's Time"
+        alert.accessoryView = scrollView
+        alert.runModal()
+    }
+
     @objc func handleSleep() {
         // Check current Watson status directly instead of relying on cached state
         let output = runShell("\(watsonPath) status")
@@ -231,6 +261,10 @@ func buildMenu(isTracking: Bool) {
     let statsItem = NSMenuItem(title: "Today's Stats", action: #selector(MenuHandler.showStats), keyEquivalent: "t")
     statsItem.target = handler
     menu.addItem(statsItem)
+
+    let yesterdayStatsItem = NSMenuItem(title: "Yesterday's Stats", action: #selector(MenuHandler.showYesterdayStats), keyEquivalent: "y")
+    yesterdayStatsItem.target = handler
+    menu.addItem(yesterdayStatsItem)
 
     menu.addItem(.separator())
 
