@@ -123,7 +123,14 @@ class MenuHandler: NSObject {
     }
 
     @objc func showYesterdayStats() {
-        let output = runShell("\(watsonPath) report --from yesterday --to yesterday")
+        // Calculate yesterday's date
+        let calendar = Calendar.current
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) else { return }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let yesterdayStr = formatter.string(from: yesterday)
+
+        let output = runShell("\(watsonPath) report --from \(yesterdayStr) --to \(yesterdayStr)")
 
         let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 450, height: 300))
         textView.isEditable = false
